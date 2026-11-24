@@ -39,3 +39,4 @@ Thumbs.db
 /src/main/resources/application.properties
 /app.log
 /app.log.*.gz
+/documentation/LU11_A01_Manuelles_Testing.pdf

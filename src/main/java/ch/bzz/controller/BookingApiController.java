@@ -104,30 +104,53 @@ public class BookingApiController implements BookingApi {
                 bookingRepository.save(created);
                 log.debug("Created booking {} for project '{}'", created.getBookingNumber(), project.getProjectName());
             } else {
-                ch.bzz.entity.Booking existing = bookingRepository.findByProjectAndBookingNumber(project, entry.getId())
-                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found: " + entry.getId()));
-
-                if (date == null && text == null && debitNumber == null && creditNumber == null && amount == null) {
-                    bookingRepository.delete(existing);
-                    log.debug("Deleted booking {} for project '{}'", entry.getId(), project.getProjectName());
+                var existingOpt = bookingRepository.findByProjectAndBookingNumber(project, entry.getId());
+                if (existingOpt.isEmpty()) {
+                    if (date == null && text == null && debitNumber == null && creditNumber == null && amount == null) {
+                        continue;
+                    }
+                    if (date == null || text == null || debitNumber == null || creditNumber == null || amount == null) {
+                        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found: " + entry.getId());
+                    }
+                    Account debitAccount = resolveAccount(project, debitNumber);
+                    Account creditAccount = resolveAccount(project, creditNumber);
+                    ch.bzz.entity.Booking created = new ch.bzz.entity.Booking(
+                            null,
+                            entry.getId(),
+                            date,
+                            text,
+                            debitAccount,
+                            creditAccount,
+                            amount,
+                            project
+                    );
+                    bookingRepository.save(created);
+                    maxBookingNumber = Math.max(maxBookingNumber, entry.getId());
+                    log.debug("Created booking {} for project '{}'", created.getBookingNumber(), project.getProjectName());
                 } else {
-                    if (date != null) {
-                        existing.setDate(date);
+                    ch.bzz.entity.Booking existing = existingOpt.get();
+                    if (date == null && text == null && debitNumber == null && creditNumber == null && amount == null) {
+                        bookingRepository.delete(existing);
+                        log.debug("Deleted booking {} for project '{}'", entry.getId(), project.getProjectName());
+                    } else {
+                        if (date != null) {
+                            existing.setDate(date);
+                        }
+                        if (text != null) {
+                            existing.setText(text);
+                        }
+                        if (debitNumber != null) {
+                            existing.setDebitAccount(resolveAccount(project, debitNumber));
+                        }
+                        if (creditNumber != null) {
+                            existing.setCreditAccount(resolveAccount(project, creditNumber));
+                        }
+                        if (amount != null) {
+                            existing.setAmount(amount);
+                        }
+                        bookingRepository.save(existing);
+                        log.debug("Updated booking {} for project '{}'", entry.getId(), project.getProjectName());
                     }
-                    if (text != null) {
-                        existing.setText(text);
-                    }
-                    if (debitNumber != null) {
-                        existing.setDebitAccount(resolveAccount(project, debitNumber));
-                    }
-                    if (creditNumber != null) {
-                        existing.setCreditAccount(resolveAccount(project, creditNumber));
-                    }
-                    if (amount != null) {
-                        existing.setAmount(amount);
-                    }
-                    bookingRepository.save(existing);
-                    log.debug("Updated booking {} for project '{}'", entry.getId(), project.getProjectName());
                 }
             }
         }
